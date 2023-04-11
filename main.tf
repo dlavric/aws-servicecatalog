@@ -1,67 +1,139 @@
-# resource "aws_servicecatalog_product" "example" {
-#   name  = "daniela"
-#   owner = "daniela-owner"
-#   type  = "CLOUD_FORMATION_TEMPLATE"
-
-#   provisioning_artifact_parameters {
-#     template_physical_id = "arn:aws:cloudformation:eu-central-1:938620692197:stack/daniela-test-stack/b14c4d30-d3c1-11ed-80ae-0680adcd4edc"
-#     type                 = "CLOUD_FORMATION_TEMPLATE"
-#   }
-# }
-
-#different AWS account
-
-
-
-
-resource "aws_servicecatalog_portfolio" "portfolio" {
-  name          = "danielaporto"
-  description   = "List of my organizations apps"
-  provider_name = "dani"
+resource "aws_servicecatalog_portfolio" "test" {
+  name          = "danielalavric"
+  description   = "danielalavric"
+  provider_name = "danielalavric"
 }
 
-resource "aws_servicecatalog_product" "example" {
-  name  = "daniela"
-  owner = "daniela-owner"
-  type  = "CLOUD_FORMATION_TEMPLATE"
+resource "aws_servicecatalog_constraint" "test" {
+  description  = "danielalavric"
+  portfolio_id = aws_servicecatalog_product_portfolio_association.test.portfolio_id
+  product_id   = aws_servicecatalog_product_portfolio_association.test.product_id
+  type         = "RESOURCE_UPDATE"
+
+  parameters = jsonencode({
+    Version = "2.0"
+    Properties = {
+      TagUpdateOnProvisionedProduct = "ALLOWED"
+    }
+  })
+}
+
+resource "aws_servicecatalog_product_portfolio_association" "test" {
+  portfolio_id = aws_servicecatalog_principal_portfolio_association.test.portfolio_id
+  product_id   = aws_servicecatalog_product.test.id
+}
+
+data "aws_caller_identity" "current" {}
+
+data "aws_iam_session_context" "current" {
+  arn = data.aws_caller_identity.current.arn
+}
+
+resource "aws_servicecatalog_principal_portfolio_association" "test" {
+  portfolio_id  = aws_servicecatalog_portfolio.test.id
+  principal_arn = data.aws_iam_session_context.current.issuer_arn # unfortunately, you cannot get launch_path for arbitrary role - only caller
+}
+
+data "aws_servicecatalog_launch_paths" "test" {
+  product_id = aws_servicecatalog_product_portfolio_association.test.product_id
+}
+
+resource "aws_s3_bucket" "test" {
+  bucket        = "danielalavric"
+  force_destroy = true
+}
+
+resource "aws_s3_bucket_acl" "test" {
+  bucket = aws_s3_bucket.test.id
+  acl    = "private"
+}
+
+resource "aws_s3_object" "test" {
+  bucket = aws_s3_bucket.test.id
+  key    = "danielalavric.json"
+
+  content = jsonencode({
+    AWSTemplateFormatVersion = "2010-09-09"
+
+    Parameters = {
+      VPCPrimaryCIDR = {
+        Type = "String"
+      }
+      LeaveMeEmpty = {
+        Type        = "String"
+        Description = "Make sure that empty values come through. Issue #21349"
+      }
+    }
+
+    "Conditions" = {
+      "IsEmptyParameter" = {
+        "Fn::Equals" = [
+          {
+            "Ref" = "LeaveMeEmpty"
+          },
+          "",
+        ]
+      }
+    }
+
+    Resources = {
+      MyVPC = {
+        Type      = "AWS::EC2::VPC"
+        Condition = "IsEmptyParameter"
+        Properties = {
+          CidrBlock = { Ref = "VPCPrimaryCIDR" }
+        }
+      }
+    }
+
+    Outputs = {
+      VpcID = {
+        Description = "VPC ID"
+        Value = {
+          Ref = "VPCPrimaryCIDR"
+        }
+      }
+    }
+  })
+}
+
+resource "aws_servicecatalog_product" "test" {
+  description         = "danielalavric"
+  distributor         = "distributör"
+  name                = "danielalavric"
+  owner               = "ägare"
+  type                = "CLOUD_FORMATION_TEMPLATE"
+  support_description = "danielalavric"
+  support_email       = "no-reply@hashicorp.com"
+  support_url         = "http://danielalavric.com"
 
   provisioning_artifact_parameters {
-    template_physical_id = "arn:aws:cloudformation:eu-central-1:323533494701:stack/daniela-stack/e90a5a50-d452-11ed-9880-064f8d29b592"
-    type                 = "CLOUD_FORMATION_TEMPLATE"
-    #name                 = "v9"
+    description                 = "artefaktbeskrivning"
+    disable_template_validation = true
+    name                        = "danielalavric"
+    template_url                = "https://${aws_s3_bucket.test.bucket_regional_domain_name}/${aws_s3_object.test.key}"
+    type                        = "CLOUD_FORMATION_TEMPLATE"
+  }
+
+  tags = {
+    Name = "danielalavric"
   }
 }
 
-resource "aws_servicecatalog_product_portfolio_association" "association" {
-  portfolio_id = aws_servicecatalog_portfolio.portfolio.id
-  product_id   = aws_servicecatalog_product.example.id
-}
+resource "aws_servicecatalog_provisioned_product" "test" {
+  name                       = "danielalavric"
+  product_id                 = aws_servicecatalog_product.test.id
+  provisioning_artifact_name = "danielalavric"
+  path_id                    = data.aws_servicecatalog_launch_paths.test.summaries[0].path_id
 
-resource "aws_servicecatalog_product_portfolio_association" "association_rule" {
-  product_id   = aws_servicecatalog_product.example.id
-  portfolio_id = aws_servicecatalog_portfolio.portfolio.id
-}
+  provisioning_parameters {
+    key   = "VPCPrimaryCIDR"
+    value = "10.1.0.0/16"
+  }
 
-# resource "aws_servicecatalog_portfolio_share" "example" {
-#   principal_id = "323533494701"
-#   portfolio_id = aws_servicecatalog_portfolio.portfolio.id
-#   type         = "ORGANIZATION_MEMBER_ACCOUNT"
-# }
+  provisioning_parameters {
+    key   = "LeaveMeEmpty"
+    value = ""
+  }
 
-# data "aws_servicecatalog_launch_paths" "path" {
-#   product_id = aws_servicecatalog_product.example.id
-# }
-
-resource "aws_servicecatalog_provisioning_artifact" "artifact" {
-  name                 = "v9"
-  product_id           = aws_servicecatalog_product.example.id
-  type                 = "CLOUD_FORMATION_TEMPLATE"
-  template_physical_id = "arn:aws:cloudformation:eu-central-1:323533494701:stack/daniela-stack/e90a5a50-d452-11ed-9880-064f8d29b592"
-}
-
-resource "aws_servicecatalog_provisioned_product" "example" {
-  name       = "daniela"
-  product_id = aws_servicecatalog_product.example.id
-  #   path_id                    = data.aws_servicecatalog_launch_paths.path.summaries[0].path_id
-  provisioning_artifact_name = "v9"
 }
